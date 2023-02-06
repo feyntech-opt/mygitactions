@@ -1,0 +1,38 @@
+name: Super-Linter
+
+on: push
+
+jobs:
+  super-lint:
+    name: Lint code base
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Test Docker services
+        run: |
+          docker-compose up -d --build web
+          sleep 10 # wait for services to start
+          response=$(curl http://localhost:8000/status)
+          if [ "$response" != "Hello World" ]; then
+            echo "Test failed: Unexpected response: $response"
+            exit 1
+          fi
+          docker-compose down
+      - name: Test MongoDB
+        run: |
+          docker-compose up -d mongodb
+          sleep 30
+          result=$(docker-compose exec -T mongodb mongosh --eval "printjson(db.version())" --quiet)
+          if [ "$result" != "6.0.4" ]; then
+            echo "Test failed: Unexpected MongoDB version: $result"
+            exit 1
+          fi
+      
+      - name: Run Super-Linter
+        uses: github/super-linter@v4
+        env:
+          VALIDATE_PYTHON_BLACK: true
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
